@@ -65,7 +65,7 @@ if (GNU_COMPILER OR CLANG_COMPILER)
         set(CMAKE_BUILD_TYPE "Release")
     else ()
         #flags for clang and gcc in linux
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread -Wall -pedantic -Wextra")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread -Wall -pedantic -Wextra")
     endif ()
     if (PROFILING)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
@@ -435,11 +435,11 @@ if (CHECK_OPTIONAL_LIBS)
         set(ENABLED_FEATURES "${ENABLED_FEATURES} Eigen")
     endif (EIGEN3_FOUND)
 
-    # set(JPS_FOUND 1)
+    set(JPS_FOUND 1)
     if (JPS_FOUND)
-        add_library(jps SHARED IMPORTED) # or STATIC instead of SHARED
-        set_target_properties(jps PROPERTIES IMPORTED_LOCATION "/tmp/libjps.so")
-        include_directories(SYSTEM "/tmp/include")
+        add_library(jps STATIC IMPORTED) # or STATIC instead of SHARED
+        set_target_properties(jps PROPERTIES IMPORTED_LOCATION "/home/behr_mi/git/simulator/build/lib/libcore.a")
+        include_directories(SYSTEM "/home/behr_mi/git/simulator/cpp/libcore/source")
         set(HAVE_JPS 1)
     endif (JPS_FOUND)
 
