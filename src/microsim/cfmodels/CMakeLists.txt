@@ -29,6 +29,8 @@ set(microsim_cfmodels_STAT_SRCS
    MSCFModel_ACC.h
    MSCFModel_CACC.cpp
    MSCFModel_CACC.h
+   MSCFModel_Lin2016.cpp
+   MSCFModel_Lin2016.h
    MSCFModel_Rail.cpp
    MSCFModel_Rail.h
    CC_Const.h

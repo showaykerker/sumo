@@ -1384,6 +1384,13 @@ SUMOVehicleParserHelper::getAllowedCFModelAttrs() {
         ccParams.insert(SUMO_ATTR_CF_CC_FLATBED_H);
         allowedCFModelAttrs[SUMO_TAG_CF_CC] = ccParams;
         allParams.insert(ccParams.begin(), ccParams.end());
+        // Lin2016
+        std::set<SumoXMLAttr> lin2016Params;
+        lin2016Params.insert(SUMO_ATTR_ACCEL);
+        lin2016Params.insert(SUMO_ATTR_DECEL);
+        lin2016Params.insert(SUMO_ATTR_TAU);
+        allowedCFModelAttrs[SUMO_TAG_CF_LIN2016] = lin2016Params;
+        allParams.insert(lin2016Params.begin(), lin2016Params.end());
         // last element
         allowedCFModelAttrs[SUMO_TAG_NOTHING] = allParams;
     }

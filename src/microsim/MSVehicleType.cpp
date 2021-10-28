@@ -43,10 +43,11 @@
 #include "cfmodels/MSCFModel_PWag2009.h"
 #include "cfmodels/MSCFModel_Wiedemann.h"
 #include "cfmodels/MSCFModel_W99.h"
+#include "cfmodels/MSCFModel_CC.h"
 #include "cfmodels/MSCFModel_ACC.h"
 #include "cfmodels/MSCFModel_CACC.h"
+#include "cfmodels/MSCFModel_Lin2016.h"
 #include "MSVehicleControl.h"
-#include "cfmodels/MSCFModel_CC.h"
 #include "MSVehicleType.h"
 
 
@@ -351,6 +352,9 @@ MSVehicleType::build(SUMOVTypeParameter& from) {
             break;
         case SUMO_TAG_CF_CC:
             vtype->myCarFollowModel = new MSCFModel_CC(vtype);
+            break;
+        case SUMO_TAG_CF_LIN2016:
+            vtype->myCarFollowModel = new MSCFModel_Lin2016(vtype);
             break;
         case SUMO_TAG_CF_KRAUSS:
         default:

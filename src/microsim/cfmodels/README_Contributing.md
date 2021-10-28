@@ -29,3 +29,5 @@ Modifications to the files and directories listed here are considered _derivativ
 - MSCFModel_SmartSK.h
 - MSCFModel_Wiedemann.cpp
 - MSCFModel_Wiedemann.h
+- MSCFModel_Lin2016.cpp
+- MSCFModel_Lin2016.h
