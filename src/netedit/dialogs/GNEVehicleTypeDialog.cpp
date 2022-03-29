@@ -1568,6 +1568,34 @@ GNEVehicleTypeDialog::CarFollowingModelParameters::refreshCFMFields() {
                     SUMO_ATTR_CF_CC_FLATBED_H
                 */
                 break;
+            case SUMO_TAG_CF_LIN2016:
+                myTauRow->show();
+                myAccelRow->show();
+                myDecelRow->show();
+                // show myLabelIncompleteAttribute
+                myLabelIncompleteAttribute->show();
+                /**
+                The follow parameters has to be added:
+                    SUMO_ATTR_CF_CC_C1
+                    SUMO_ATTR_CF_CC_CCDECEL
+                    SUMO_ATTR_CF_CC_CONSTSPACING
+                    SUMO_ATTR_CF_CC_KP
+                    SUMO_ATTR_CF_CC_LAMBDA
+                    SUMO_ATTR_CF_CC_OMEGAN
+                    SUMO_ATTR_CF_CC_TAU
+                    SUMO_ATTR_CF_CC_XI
+                    SUMO_ATTR_CF_CC_LANES_COUNT
+                    SUMO_ATTR_CF_CC_CCACCEL
+                    SUMO_ATTR_CF_CC_PLOEG_KP
+                    SUMO_ATTR_CF_CC_PLOEG_KD
+                    SUMO_ATTR_CF_CC_PLOEG_H
+                    SUMO_ATTR_CF_CC_FLATBED_KA
+                    SUMO_ATTR_CF_CC_FLATBED_KV
+                    SUMO_ATTR_CF_CC_FLATBED_KP
+                    SUMO_ATTR_CF_CC_FLATBED_D
+                    SUMO_ATTR_CF_CC_FLATBED_H
+                */
+                break;
             default:
                 break;
         }

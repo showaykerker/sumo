@@ -675,6 +675,10 @@ public:
         return *myEdge;
     }
 
+    inline MSEdge* getMyEdge() const {
+        return myEdge;
+    }
+
 
     /** @brief Returns the lane's follower if it is an internal lane, the edge of the lane otherwise
      * @return This lane's follower

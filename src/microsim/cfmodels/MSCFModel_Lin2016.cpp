@@ -24,6 +24,7 @@
 
 #include "MSCFModel_Lin2016.h"
 #include <microsim/MSVehicle.h>
+#include <microsim/MSEdge.h>
 #include <microsim/MSLane.h>
 #include <utils/common/RandHelper.h>
 #include <utils/common/SUMOTime.h>
@@ -36,7 +37,8 @@
 // ===========================================================================
 //#define DEBUG_LIN2016
 //#define DEBUG_COND (true)
-//#define DEBUG_COND (veh->isSelected())
+#define DEBUG_GET_INVOLVED
+#define DEBUG_COND (veh->isSelected())
 
 
 // ===========================================================================
@@ -50,6 +52,7 @@
 #define DEFAULT_CA_GAIN_SPACE 0.8
 #define DEFAULT_CA_GAIN_SPEED 0.23
 
+#define DEFAULT_LOOKAHEAD 50.0
 // ===========================================================================
 // thresholds
 // ===========================================================================
@@ -69,6 +72,7 @@
 // ===========================================================================
 MSCFModel_Lin2016::MSCFModel_Lin2016(const MSVehicleType* vtype) :
     MSCFModel(vtype),
+    myLookaheadDist(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_LOOKAHEAD, DEFAULT_LOOKAHEAD)),
     mySpeedControlGain(vtype->getParameter().getCFParam(SUMO_ATTR_SC_GAIN, DEFAULT_SC_GAIN)),
     myGapClosingControlGainSpeed(vtype->getParameter().getCFParam(SUMO_ATTR_GCC_GAIN_SPEED, DEFAULT_GCC_GAIN_SPEED)),
     myGapClosingControlGainSpace(vtype->getParameter().getCFParam(SUMO_ATTR_GCC_GAIN_SPACE, DEFAULT_GCC_GAIN_SPACE)),
@@ -187,6 +191,75 @@ double MSCFModel_Lin2016::accelGapControl(const MSVehicle* const /* veh */, cons
     return gclAccel;
 }
 
+Position 
+MSCFModel_Lin2016::getRelativePosition(Position v1, double v1Heading, Position v2) const {
+    Position dummy(0.0, 0.0);
+    Position result = (v2 - v1).rotateAround2D(-v1Heading, dummy);
+    // std::cout<<v1<<","<<v1Heading<<" | "<<v2<<"\n\t"<<result<<"\n";
+    return result;
+}
+
+const std::vector<const SUMOVehicle*> 
+MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
+
+    std::vector<const SUMOVehicle*> vehs;
+    double lookahead = myLookaheadDist;
+
+    double vehPosOnLane = veh->getPositionOnLane();
+    double vehBackPosOnLane = veh->getBackPositionOnLane();
+    Position vehPos = veh->getPosition();
+    double vehHeading = veh->getAngle();
+
+    for (auto l: veh->getBestLanesContinuation()) {
+
+        double vehToLaneEnd = l->getLength() - vehPosOnLane;
+        if (vehToLaneEnd < 0) vehToLaneEnd = 0;
+
+        // Get Edge Don't work. It causes segmentation fault (core dumped).
+
+        // Check Edge
+        // std::vector<const SUMOVehicle*> vehsOnEdge = l->getEdge().getVehicles();
+        // std::cout << vehsOnEdge.size() << ", " << vehToLaneEnd << ", " << lookahead << std::endl;
+
+        // if (l == veh->getLane()) {  // Check vehicles in same edge
+        //     for (auto v: vehsOnEdge) {
+        //         double distance = v->getPositionOnLane() - vehBackPosOnLane;
+        //         if (distance > 0 && distance < lookahead) {
+        //             Position vPos = v->getPosition();
+        //             Position relative = getRelativePosition(vehPos, vehHeading, vPos);
+        //             vehs.push_back(v);
+        //         }
+        //     }
+        // }
+        // else {  // Check vehicles in other edge
+        //     for (auto v: vehsOnEdge) {
+        //         Position vPos = v->getPosition();
+        //         Position relative = getRelativePosition(vehPos, vehHeading, vPos);
+        //         if (relative.x() <= lookahead) {
+        //             vehs.push_back(v);
+        //         }
+        //     }
+        // }
+        // if (vehToLaneEnd > lookahead) break;
+        // else lookahead -= vehToLaneEnd;
+
+        // Check Junction
+
+
+    }
+
+    if (DEBUG_COND) {
+        for (auto l: veh->getBestLanesContinuation()) {
+            std::cout << l->getMyEdge()->getID() << " -> ";
+            std::cout << l->getMyEdge()->getToJunction()->getID() << " -> ";
+        }
+        std::cout << " | " << veh->getBestLanesContinuation().size() << std::endl;
+
+    }
+
+    return vehs;
+}
+
 
 double
 MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const double speed,
@@ -195,6 +268,8 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     double accelACC = 0;
     double gapLimit_SC = GAP_THRESHOLD_SPEEDCTRL; // lower gap limit in meters to enable speed control law
     double gapLimit_GC = GAP_THRESHOLD_GAPCTRL; // upper gap limit in meters to enable gap control law
+
+    getInvolvedVehicles(veh);
 
 #ifdef DEBUG_LIN2016
     if (DEBUG_COND) {

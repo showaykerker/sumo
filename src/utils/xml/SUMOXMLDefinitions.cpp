@@ -206,7 +206,7 @@ StringBijection<int>::Entry SUMOXMLDefinitions::tags[] = {
     { "carFollowing-ACC",               SUMO_TAG_CF_ACC },
     { "carFollowing-CACC",              SUMO_TAG_CF_CACC },
     { "carFollowing-CC",                SUMO_TAG_CF_CC },
-    { "carFollowing-Lin2016",                SUMO_TAG_CF_CC },
+    { "carFollowing-Lin2016",           SUMO_TAG_CF_LIN2016 },
     // Person
     { "person",                         SUMO_TAG_PERSON },
     { "personTrip",                     SUMO_TAG_PERSONTRIP },
@@ -843,6 +843,8 @@ StringBijection<int>::Entry SUMOXMLDefinitions::attrs[] = {
     { "flatbedKp",              SUMO_ATTR_CF_CC_FLATBED_KP },
     { "flatbedD",               SUMO_ATTR_CF_CC_FLATBED_D },
     { "flatbedH",               SUMO_ATTR_CF_CC_FLATBED_H },
+
+    { "lookaheadDist",          SUMO_ATTR_CF_L16_LOOKAHEAD },
 
     { "generateWalks",          SUMO_ATTR_GENERATE_WALKS },
     { "actType",                SUMO_ATTR_ACTTYPE },

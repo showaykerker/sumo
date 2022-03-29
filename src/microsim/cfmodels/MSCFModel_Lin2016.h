@@ -22,6 +22,8 @@
 
 #include "MSCFModel.h"
 #include <utils/xml/SUMOXMLDefinitions.h>
+#include <utils/vehicle/SUMOVehicle.h>
+#include <utils/geom/Position.h>
 
 // ===========================================================================
 // class declarations
@@ -139,14 +141,19 @@ private:
 
 
 private:
+    Position getRelativePosition(Position v1, double v1Heading, Position v2) const;
+    const std::vector<const SUMOVehicle*>  getInvolvedVehicles(const MSVehicle* const veh) const;
     double _v(const MSVehicle* const veh, const double gap2pred, const double mySpeed,
               const double predSpeed, const double desSpeed, const bool respectMinGap = true) const;
+
 
     double accelSpeedControl(double vErr) const;
     double accelGapControl(const MSVehicle* const veh, const double gap2pred, const double speed, const double predSpeed, double vErr) const;
 
 
 private:
+    double myLookaheadDist;
+
     double mySpeedControlGain;
     double myGapClosingControlGainSpeed;
     double myGapClosingControlGainSpace;

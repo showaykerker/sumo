@@ -1389,6 +1389,7 @@ SUMOVehicleParserHelper::getAllowedCFModelAttrs() {
         lin2016Params.insert(SUMO_ATTR_ACCEL);
         lin2016Params.insert(SUMO_ATTR_DECEL);
         lin2016Params.insert(SUMO_ATTR_TAU);
+        lin2016Params.insert(SUMO_ATTR_CF_L16_LOOKAHEAD);
         allowedCFModelAttrs[SUMO_TAG_CF_LIN2016] = lin2016Params;
         allParams.insert(lin2016Params.begin(), lin2016Params.end());
         // last element
