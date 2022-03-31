@@ -1005,4 +1005,24 @@ private:
     bool isSuperposable(const MSEdge* other);
 
     void addToAllowed(const SVCPermissions permissions, std::shared_ptr<const std::vector<MSLane*> > allowedLanes, AllowedLanesCont& laneCont) const;
+
+public:
+    inline bool isJunction() {
+        return getID()[0] == ':';
+    }
+
+    const std::string getJunctionID() {
+        std::string fullID = getID();
+        assert(isJunction());
+        std::string result = "";
+        bool lastBtmLineSkipped = false;
+        for (short i = fullID.size() - 1; i >=0; i--) {
+            if (lastBtmLineSkipped)
+                result = fullID[i] + result;
+            else if (fullID[i] == '_')
+                lastBtmLineSkipped = true;
+        }
+        return result;
+    }
+
 };

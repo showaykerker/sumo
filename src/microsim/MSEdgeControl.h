@@ -60,6 +60,7 @@ class MSJunction;
 class OutputDevice;
 
 typedef std::vector<MSEdge*> MSEdgeVector;
+typedef std::vector<std::pair<double, const SUMOVehicle*>> MSVehIDInstanceVector;
 
 // ===========================================================================
 // class definitions
@@ -306,5 +307,14 @@ private:
 
     /// @brief Assignment operator.
     MSEdgeControl& operator=(const MSEdgeControl&);
+
+
+public:
+    const std::shared_ptr<
+        std::map<std::string, MSVehIDInstanceVector>> getVehPosOnEdgeMap();
+
+private:
+    void calculateVehPosOnEdgeMap(SUMOTime t);
+    std::shared_ptr<std::map<std::string, MSVehIDInstanceVector>> myVehPosOnEdgeMap;
 
 };

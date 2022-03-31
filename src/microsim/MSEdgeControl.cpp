@@ -36,6 +36,7 @@
 #define PARALLEL_EXEC_MOVE
 //#define PARALLEL_CHANGE_LANES
 //#define LOAD_BALANCING
+// #define DEBUG_VEHPOSONEDGEMAP
 
 //#define PARALLEL_STOPWATCH
 
@@ -52,7 +53,8 @@ MSEdgeControl::MSEdgeControl(const std::vector< MSEdge* >& edges)
 #ifdef THREAD_POOL
       myThreadPool(false, std::vector<int>(MSGlobals::gNumThreads, 0)),
 #endif
-      myStopWatch(3) {
+      myStopWatch(3),
+      myVehPosOnEdgeMap(nullptr) {
     // build the usage definitions for lanes
     for (MSEdge* const edge : myEdges) {
         const std::vector<MSLane*>& lanes = edge->getLanes();
@@ -180,6 +182,9 @@ MSEdgeControl::planMovements(SUMOTime t) {
 #ifdef PARALLEL_STOPWATCH
     myStopWatch[0].stop();
 #endif
+
+    calculateVehPosOnEdgeMap(t);
+
 }
 
 
@@ -384,6 +389,67 @@ MSEdgeControl::saveState(OutputDevice& out) {
     out.openTag(SUMO_TAG_EDGECONTROL);
     out.writeAttr(SUMO_ATTR_LANES, myActiveLanes);
     out.closeTag();
+}
+
+const std::shared_ptr<std::map<std::string, MSVehIDInstanceVector>>
+MSEdgeControl::getVehPosOnEdgeMap() {
+    return myVehPosOnEdgeMap;
+}
+
+void
+MSEdgeControl::calculateVehPosOnEdgeMap(SUMOTime t){
+
+    if (myVehPosOnEdgeMap == nullptr) {
+        myVehPosOnEdgeMap = std::make_shared<std::map<std::string, MSVehIDInstanceVector>>();
+    }
+
+    myVehPosOnEdgeMap->clear();
+
+    #ifdef DEBUG_VEHPOSONEDGEMAP
+        std::cout << t << std::endl;
+    #endif 
+
+    for (MSEdge* e: myEdges) {
+        std::string eid = e->getID();
+        bool isJunction = e->isJunction();
+        if (isJunction) eid = e->getJunctionID();
+        std::vector<const SUMOVehicle*> vehs = e->getVehicles();
+        if (vehs.size()) {
+
+            if (myVehPosOnEdgeMap->find(eid) == myVehPosOnEdgeMap->end()) {
+                myVehPosOnEdgeMap->insert(std::pair<std::string, MSVehIDInstanceVector>(eid, {}));
+            }
+
+            for (const SUMOVehicle* v: vehs) {
+                double dist = v->getPositionOnLane();
+                myVehPosOnEdgeMap->at(eid).push_back(std::pair<double, const SUMOVehicle*>(dist, v));
+            }
+        }
+    }
+
+    std::map<std::string, MSVehIDInstanceVector>::iterator it = myVehPosOnEdgeMap->begin();
+    int vehCount = 0;
+    while (it != myVehPosOnEdgeMap->end()) {
+        std::string eid = it->first;
+
+        std::sort(myVehPosOnEdgeMap->at(eid).begin(), myVehPosOnEdgeMap->at(eid).end());
+
+        #ifdef DEBUG_VEHPOSONEDGEMAP
+            std::cout << "  " << eid << ": ";
+            for (auto &vehPair: myVehPosOnEdgeMap->find(eid)->second) {
+                std::cout << vehPair.second->getID() << "(" << vehPair.first << ") ";
+                vehCount += 1;
+            }
+            std::cout << std::endl;
+
+        #endif
+
+        it++;
+    }
+    
+    #ifdef DEBUG_VEHPOSONEDGEMAP
+        std::cout << "  Total: " << vehCount << std::endl;
+    #endif
 }
 
 /****************************************************************************/
