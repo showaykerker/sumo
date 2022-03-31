@@ -20,24 +20,27 @@
 #include <config.h>
 
 #include <stdio.h>
+#include <list>
 #include <iostream>
 
 #include "MSCFModel_Lin2016.h"
-#include <microsim/MSVehicle.h>
+#include <microsim/MSNet.h>
+#include <microsim/MSEdgeControl.h>
+#include <microsim/MSRoute.h>
 #include <microsim/MSEdge.h>
 #include <microsim/MSLane.h>
+#include <microsim/MSVehicle.h>
 #include <utils/common/RandHelper.h>
 #include <utils/common/SUMOTime.h>
 #include <microsim/lcmodels/MSAbstractLaneChangeModel.h>
 #include <math.h>
-#include <microsim/MSNet.h>
 
 // ===========================================================================
 // debug flags
 // ===========================================================================
 //#define DEBUG_LIN2016
 //#define DEBUG_COND (true)
-#define DEBUG_GET_INVOLVED
+// #define DEBUG_GET_INVOLVED
 #define DEBUG_COND (veh->isSelected())
 
 
@@ -191,7 +194,7 @@ double MSCFModel_Lin2016::accelGapControl(const MSVehicle* const /* veh */, cons
     return gclAccel;
 }
 
-Position 
+Position
 MSCFModel_Lin2016::getRelativePosition(Position v1, double v1Heading, Position v2) const {
     Position dummy(0.0, 0.0);
     Position result = (v2 - v1).rotateAround2D(-v1Heading, dummy);
@@ -199,7 +202,7 @@ MSCFModel_Lin2016::getRelativePosition(Position v1, double v1Heading, Position v
     return result;
 }
 
-const std::vector<const SUMOVehicle*> 
+const std::vector<const SUMOVehicle*>
 MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
 
     std::vector<const SUMOVehicle*> vehs;
@@ -209,54 +212,104 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
     double vehBackPosOnLane = veh->getBackPositionOnLane();
     Position vehPos = veh->getPosition();
     double vehHeading = veh->getAngle();
+    const MSLane* vehLane = veh->getLane();
+    std::string vehEdgeID = Named::getIDSecure(veh->getLane()->getMyEdge());
 
-    for (auto l: veh->getBestLanesContinuation()) {
+    auto vehPosOnEdgeMap = MSNet::getInstance()->getEdgeControl().getVehPosOnEdgeMap();
 
-        double vehToLaneEnd = l->getLength() - vehPosOnLane;
-        if (vehToLaneEnd < 0) vehToLaneEnd = 0;
+    const MSRoute& vehRoute = veh->getRoute();
 
-        // Get Edge Don't work. It causes segmentation fault (core dumped).
+    const std::vector<MSLane*>& bestLaneConts = veh->getBestLanesContinuation();
+    std::vector<MSLane*>::const_iterator it = bestLaneConts.begin();
+    while (lookahead > 0 && it != bestLaneConts.end()) {  // only iter lanes, no junctions
+        bool isJunction = *it == nullptr;
 
-        // Check Edge
-        // std::vector<const SUMOVehicle*> vehsOnEdge = l->getEdge().getVehicles();
-        // std::cout << vehsOnEdge.size() << ", " << vehToLaneEnd << ", " << lookahead << std::endl;
+        if (!isJunction) {
+            std::string eid = (*it)->getEdge().getID();
+            double laneLength = (*it)->getLength();
+            bool foundSelf = false;
+            double selfDist = 0;
+            if (vehPosOnEdgeMap->find(eid) != vehPosOnEdgeMap->end()) {
+                for (auto & distVeh: vehPosOnEdgeMap->at(eid)) {
+                    if (distVeh.second->getID() == veh->getID()) {
+                        foundSelf = true;
+                        selfDist = distVeh.first;
+                    }
+                    else if (foundSelf){
+                        double dist = distVeh.first - selfDist;
+                        if (dist < lookahead) {
+                            vehs.push_back(distVeh.second);
+                            lookahead -= dist;
+                            selfDist = distVeh.first;
+                        }
+                    }
+                }
+            }
+            if (selfDist <= laneLength) {
+                lookahead -= laneLength - selfDist;
+            }
 
-        // if (l == veh->getLane()) {  // Check vehicles in same edge
-        //     for (auto v: vehsOnEdge) {
-        //         double distance = v->getPositionOnLane() - vehBackPosOnLane;
-        //         if (distance > 0 && distance < lookahead) {
-        //             Position vPos = v->getPosition();
-        //             Position relative = getRelativePosition(vehPos, vehHeading, vPos);
-        //             vehs.push_back(v);
-        //         }
-        //     }
-        // }
-        // else {  // Check vehicles in other edge
-        //     for (auto v: vehsOnEdge) {
-        //         Position vPos = v->getPosition();
-        //         Position relative = getRelativePosition(vehPos, vehHeading, vPos);
-        //         if (relative.x() <= lookahead) {
-        //             vehs.push_back(v);
-        //         }
-        //     }
-        // }
-        // if (vehToLaneEnd > lookahead) break;
-        // else lookahead -= vehToLaneEnd;
+            if (lookahead <= 0) {
+                break;
+            }
 
-        // Check Junction
+            // Append all vehicles in the following junction
 
+            const MSLane* nextLane = (*it)->getCanonicalSuccessorLane();
+            if (nextLane == nullptr) {
+                break;
+            }
+            else {
+                std::string jid = nextLane->getEdge().getJunctionID();
+                if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
+                    for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
+                        vehs.push_back(distVeh.second);
+                    }
+                    lookahead -= nextLane->getLength();
+                }
+            }
 
-    }
-
-    if (DEBUG_COND) {
-        for (auto l: veh->getBestLanesContinuation()) {
-            std::cout << l->getMyEdge()->getID() << " -> ";
-            std::cout << l->getMyEdge()->getToJunction()->getID() << " -> ";
         }
-        std::cout << " | " << veh->getBestLanesContinuation().size() << std::endl;
+        else {  // Vehicle is now in a junction
+            std::string jid = vehLane->getEdge().getJunctionID();
+            if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
+                for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
+                    vehs.push_back(distVeh.second);
+                }
+            }
+            lookahead -= vehLane->getLength();
+        }
 
+
+        #ifdef DEBUG_GET_INVOLVED
+            if (DEBUG_COND) {
+                if (isJunction)  // When vehicle is at a junction
+                    std::cout << vehLane->getEdge().getID() << " -> ";
+                else {
+                    std::cout << (*it)->getEdge().getID() << " -> ";  // Get Lane
+                    const MSLane* nextLane = (*it)->getCanonicalSuccessorLane();
+                    if (nextLane == nullptr) 
+                        std::cout << "NULL\n";
+                    else {
+                        if (it + 1 == bestLaneConts.end())  // Get Junction
+                            std::cout << nextLane->getEdge().getJunctionID() << " -> NULL\n";
+                        else 
+                            std::cout << nextLane->getEdge().getJunctionID() << " -> ";
+                    }
+                }                
+            }
+        #endif
+        ++it;
     }
-
+    #ifdef DEBUG_GET_INVOLVED
+        if (DEBUG_COND) {
+            std::cout << "\nn = " << vehs.size() << ": ";
+            for (auto & v: vehs) {
+                std::cout << v->getID() << " -> ";
+            }
+            std::cout << std::endl;
+        }
+    #endif
     return vehs;
 }
 
