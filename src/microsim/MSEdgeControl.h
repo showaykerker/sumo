@@ -311,9 +311,9 @@ private:
 
 public:
     const std::shared_ptr<
-        std::map<std::string, MSVehIDInstanceVector>> getVehPosOnEdgeMap();
+        std::map<std::string, MSVehIDInstanceVector>> getVehPosOnEdgeMap() const;
 
-private:
+public:
     void calculateVehPosOnEdgeMap(SUMOTime t);
     std::shared_ptr<std::map<std::string, MSVehIDInstanceVector>> myVehPosOnEdgeMap;
 

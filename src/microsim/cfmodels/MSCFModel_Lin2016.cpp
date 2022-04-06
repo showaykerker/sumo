@@ -39,10 +39,17 @@
 // debug flags
 // ===========================================================================
 //#define DEBUG_LIN2016
-//#define DEBUG_COND (true)
-// #define DEBUG_GET_INVOLVED
-#define DEBUG_COND (veh->isSelected())
+#define DEBUG_COND (true)
+#define DEBUG_GET_INVOLVED
+// #define DEBUG_COND (veh->isSelected())
 
+typedef std::vector<MSEdge*> MSEdgeVector;
+typedef std::vector<std::pair<double, const SUMOVehicle*>> MSVehIDInstanceVector;
+
+// ===========================================================================
+// constants
+// ===========================================================================
+// #define PI 3.14159265  // already defined in /usr/include/fox-1.6/fxdefs.h
 
 // ===========================================================================
 // defaults
@@ -196,6 +203,7 @@ double MSCFModel_Lin2016::accelGapControl(const MSVehicle* const /* veh */, cons
 
 Position
 MSCFModel_Lin2016::getRelativePosition(Position v1, double v1Heading, Position v2) const {
+    // v1Heading: rad
     Position dummy(0.0, 0.0);
     Position result = (v2 - v1).rotateAround2D(-v1Heading, dummy);
     // std::cout<<v1<<","<<v1Heading<<" | "<<v2<<"\n\t"<<result<<"\n";
@@ -205,22 +213,40 @@ MSCFModel_Lin2016::getRelativePosition(Position v1, double v1Heading, Position v
 const std::vector<const SUMOVehicle*>
 MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
 
-    std::vector<const SUMOVehicle*> vehs;
+    std::vector<const SUMOVehicle*> vehs = {};
     double lookahead = myLookaheadDist;
 
-    double vehPosOnLane = veh->getPositionOnLane();
-    double vehBackPosOnLane = veh->getBackPositionOnLane();
-    Position vehPos = veh->getPosition();
-    double vehHeading = veh->getAngle();
     const MSLane* vehLane = veh->getLane();
     std::string vehEdgeID = Named::getIDSecure(veh->getLane()->getMyEdge());
 
-    auto vehPosOnEdgeMap = MSNet::getInstance()->getEdgeControl().getVehPosOnEdgeMap();
+    auto vehPosOnEdgeMap = MSNet::getInstance()->getEdgeControl().myVehPosOnEdgeMap;
+    // std::shared_ptr<std::map<std::string, MSVehIDInstanceVector>> vehPosOnEdgeMap = 
+    //     std::make_shared<std::map<std::string, MSVehIDInstanceVector>>(
+    //         *MSNet::getInstance()->getEdgeControl().getVehPosOnEdgeMap());
 
-    const MSRoute& vehRoute = veh->getRoute();
+    std::map<std::string, MSVehIDInstanceVector>::iterator itt = vehPosOnEdgeMap->begin();
+    int vehCount = 0;
+    while (itt != vehPosOnEdgeMap->end()) {
+        std::string eid = itt->first;
+
+        if (eid != "-18.0.00") {
+            itt++;
+            continue;
+        }
+        std::cout << "  " << eid << ": ";
+        for (auto &vehPair: vehPosOnEdgeMap->find(eid)->second) {
+            std::cout << vehPair.second->getID() << "(" << vehPair.first << ") ";
+            vehCount += 1;
+        }
+        std::cout << std::endl;
+
+
+        itt++;
+    }
 
     const std::vector<MSLane*>& bestLaneConts = veh->getBestLanesContinuation();
     std::vector<MSLane*>::const_iterator it = bestLaneConts.begin();
+    std::cout << "veh->getID() = " << veh->getID() << std::endl;
     while (lookahead > 0 && it != bestLaneConts.end()) {  // only iter lanes, no junctions
         bool isJunction = *it == nullptr;
 
@@ -238,15 +264,30 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
                     else if (foundSelf){
                         double dist = distVeh.first - selfDist;
                         if (dist < lookahead) {
+                            #ifdef DEBUG_GET_INVOLVED
+                                if (DEBUG_COND){
+                                    std::cout << "Push (" << eid << "): " << distVeh.second->getID() << std::endl;
+                                }
+                            #endif
                             vehs.push_back(distVeh.second);
                             lookahead -= dist;
                             selfDist = distVeh.first;
                         }
+                        else {
+                            lookahead = 0;
+                            break;
+                        }
                     }
                 }
+                std::cout << std::endl;
             }
-            if (selfDist <= laneLength) {
-                lookahead -= laneLength - selfDist;
+            if (lookahead != 0) {
+                if (selfDist <= laneLength) {
+                    lookahead -= laneLength - selfDist;
+                }
+                else {
+                    lookahead = 0;
+                }
             }
 
             if (lookahead <= 0) {
@@ -260,12 +301,21 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
                 break;
             }
             else {
+                isJunction = true;
                 std::string jid = nextLane->getEdge().getJunctionID();
                 if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
                     for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
+                        std::cout << "!!" << std::endl;
+                        #ifdef DEBUG_GET_INVOLVED
+                            if (DEBUG_COND){
+                                std::cout << "Push: " << distVeh.second->getID() << std::endl;
+                            }
+                        #endif
                         vehs.push_back(distVeh.second);
+                        std::cout << "Pushed: " << distVeh.second->getID() << std::endl;
                     }
-                    lookahead -= nextLane->getLength();
+                    // lookahead -= nextLane->getLength();
+                    lookahead = 0;
                 }
             }
 
@@ -274,6 +324,11 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
             std::string jid = vehLane->getEdge().getJunctionID();
             if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
                 for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
+                    #ifdef DEBUG_GET_INVOLVED
+                        if (DEBUG_COND){
+                            std::cout << "Push: " << distVeh.second->getID() << std::endl;
+                        }
+                    #endif
                     vehs.push_back(distVeh.second);
                 }
             }
@@ -288,26 +343,26 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
                 else {
                     std::cout << (*it)->getEdge().getID() << " -> ";  // Get Lane
                     const MSLane* nextLane = (*it)->getCanonicalSuccessorLane();
-                    if (nextLane == nullptr) 
+                    if (nextLane == nullptr)
                         std::cout << "NULL\n";
                     else {
                         if (it + 1 == bestLaneConts.end())  // Get Junction
                             std::cout << nextLane->getEdge().getJunctionID() << " -> NULL\n";
-                        else 
+                        else
                             std::cout << nextLane->getEdge().getJunctionID() << " -> ";
                     }
-                }                
+                }
             }
         #endif
         ++it;
     }
     #ifdef DEBUG_GET_INVOLVED
         if (DEBUG_COND) {
-            std::cout << "\nn = " << vehs.size() << ": ";
+            std::cout << "n = " << vehs.size() << ": ";
             for (auto & v: vehs) {
                 std::cout << v->getID() << " -> ";
             }
-            std::cout << std::endl;
+            std::cout << std::endl << std::endl;
         }
     #endif
     return vehs;
@@ -322,7 +377,31 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     double gapLimit_SC = GAP_THRESHOLD_SPEEDCTRL; // lower gap limit in meters to enable speed control law
     double gapLimit_GC = GAP_THRESHOLD_GAPCTRL; // upper gap limit in meters to enable gap control law
 
-    getInvolvedVehicles(veh);
+    const std::vector<const SUMOVehicle*> involved = getInvolvedVehicles(veh);
+    Position currPos = veh->getPosition();
+    double currHeading = veh->getAngle();
+    if (involved.size()) {
+        for (auto & inv: involved) {
+            std::string vid = inv->getID();
+            if (vid=="" || inv==0) {  // perhap it arrived at this point?
+                std::cout << "pass" << std::endl;
+                continue;
+            }
+            else {
+                std::cout << vid << std::endl;
+                Position invPosition = inv->getPosition();
+                // if (invPosition != Position::INVALID) {  // Not in the net.
+                    // double invHeading = inv->getAngle();
+                    // double invHalfLength = inv->getLength() / 2.0;
+                    // invPosition.setx(invPosition.x() - invHalfLength * cos(invHeading));
+                    // invPosition.sety(invPosition.y() - invHalfLength * sin(invHeading));
+                    // Position relativePosition = getRelativePosition(currPos, currHeading, invPosition);
+                    // std::cout << inv->getID() << ": " << invPosition << " | " << relativePosition << std::endl;
+                    // std::cout << inv->getID() << ": " << invPosition << " | " << invHeading << std::endl;
+                // }
+            }
+        }
+    }
 
 #ifdef DEBUG_LIN2016
     if (DEBUG_COND) {

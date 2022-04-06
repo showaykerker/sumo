@@ -36,7 +36,7 @@
 #define PARALLEL_EXEC_MOVE
 //#define PARALLEL_CHANGE_LANES
 //#define LOAD_BALANCING
-// #define DEBUG_VEHPOSONEDGEMAP
+#define DEBUG_VEHPOSONEDGEMAP
 
 //#define PARALLEL_STOPWATCH
 
@@ -392,7 +392,7 @@ MSEdgeControl::saveState(OutputDevice& out) {
 }
 
 const std::shared_ptr<std::map<std::string, MSVehIDInstanceVector>>
-MSEdgeControl::getVehPosOnEdgeMap() {
+MSEdgeControl::getVehPosOnEdgeMap() const{
     return myVehPosOnEdgeMap;
 }
 
