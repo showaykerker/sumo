@@ -60,7 +60,7 @@ class MSJunction;
 class OutputDevice;
 
 typedef std::vector<MSEdge*> MSEdgeVector;
-typedef std::vector<std::pair<double, const SUMOVehicle*>> MSVehIDInstanceVector;
+typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 
 // ===========================================================================
 // class definitions

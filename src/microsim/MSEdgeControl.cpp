@@ -36,7 +36,7 @@
 #define PARALLEL_EXEC_MOVE
 //#define PARALLEL_CHANGE_LANES
 //#define LOAD_BALANCING
-#define DEBUG_VEHPOSONEDGEMAP
+// #define DEBUG_VEHPOSONEDGEMAP
 
 //#define PARALLEL_STOPWATCH
 
@@ -407,7 +407,7 @@ MSEdgeControl::calculateVehPosOnEdgeMap(SUMOTime t){
 
     #ifdef DEBUG_VEHPOSONEDGEMAP
         std::cout << t << std::endl;
-    #endif 
+    #endif
 
     for (MSEdge* e: myEdges) {
         std::string eid = e->getID();
@@ -422,7 +422,8 @@ MSEdgeControl::calculateVehPosOnEdgeMap(SUMOTime t){
 
             for (const SUMOVehicle* v: vehs) {
                 double dist = v->getPositionOnLane();
-                myVehPosOnEdgeMap->at(eid).push_back(std::pair<double, const SUMOVehicle*>(dist, v));
+                std::string vid = v->getID();
+                myVehPosOnEdgeMap->at(eid).push_back(std::pair<double, std::string>(dist, vid));
             }
         }
     }
@@ -437,7 +438,7 @@ MSEdgeControl::calculateVehPosOnEdgeMap(SUMOTime t){
         #ifdef DEBUG_VEHPOSONEDGEMAP
             std::cout << "  " << eid << ": ";
             for (auto &vehPair: myVehPosOnEdgeMap->find(eid)->second) {
-                std::cout << vehPair.second->getID() << "(" << vehPair.first << ") ";
+                std::cout << vehPair.second << "(" << vehPair.first << ") ";
                 vehCount += 1;
             }
             std::cout << std::endl;
@@ -446,7 +447,7 @@ MSEdgeControl::calculateVehPosOnEdgeMap(SUMOTime t){
 
         it++;
     }
-    
+
     #ifdef DEBUG_VEHPOSONEDGEMAP
         std::cout << "  Total: " << vehCount << std::endl;
     #endif

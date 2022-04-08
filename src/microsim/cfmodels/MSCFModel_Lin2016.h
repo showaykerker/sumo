@@ -142,7 +142,7 @@ private:
 
 private:
     Position getRelativePosition(Position v1, double v1Heading, Position v2) const;
-    const std::vector<const SUMOVehicle*>  getInvolvedVehicles(const MSVehicle* const veh) const;
+    const std::vector<std::string>  getInvolvedVehicles(const MSVehicle* const veh) const;
     double _v(const MSVehicle* const veh, const double gap2pred, const double mySpeed,
               const double predSpeed, const double desSpeed, const bool respectMinGap = true) const;
 
