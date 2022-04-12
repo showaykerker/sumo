@@ -65,6 +65,7 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 #define DEFAULT_CA_GAIN_SPEED 0.23
 
 #define DEFAULT_LOOKAHEAD 50.0
+#define DEFAULT_SYMIN (vehWidth / 3.0)
 // ===========================================================================
 // thresholds
 // ===========================================================================
@@ -293,8 +294,8 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
                         #endif
                         vehs.push_back(distVeh.second);
                     }
-                    // lookahead -= nextLane->getLength();
-                    lookahead = 0;
+                    lookahead -= nextLane->getLength();
+                    // lookahead = 0;
                 }
             }
 
@@ -308,7 +309,8 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
                             std::cout << "Push: " << distVeh.second << std::endl;
                         }
                     #endif
-                    vehs.push_back(distVeh.second);
+                    if (distVeh.second != veh->getID())
+                        vehs.push_back(distVeh.second);
                 }
             }
             lookahead -= vehLane->getLength();
@@ -359,11 +361,15 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     const std::vector<std::string> involved = getInvolvedVehicles(veh);
     Position currPos = veh->getPosition();
     double currHeading = veh->getAngle();
+    const MSLane* currLane = veh->getLane();
+    double vehWidth = veh->getWidth();
     if (involved.size()) {
 
         #ifdef DEBUG_RELATIVE_POS
             std::cout << veh->getID() << ": " << currPos << "," << currHeading << std::endl;
         #endif
+
+        std::vector<double> phiVec{};
 
         for (auto & vid: involved) {
             SUMOVehicle* inv = MSNet::getInstance()->getVehicleControl().getVehicle(vid);
@@ -371,16 +377,75 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
                 Position invPosition = inv->getPosition();
                 if (invPosition != Position::INVALID) {  // Not in the net.
                     double invHeading = inv->getAngle();
-                    double invHalfLength = inv->getLength() / 2.0;
+                    double invLength = inv->getLength();
+                    double invHalfLength = invLength / 2.0;
+                    double invWidth = inv->getVehicleType().getWidth();
+                    double invHalfWidth = invWidth / 2.0;
+
                     invPosition.setx(invPosition.x() - invHalfLength * cos(invHeading));
                     invPosition.sety(invPosition.y() - invHalfLength * sin(invHeading));
                     Position relativePosition = getRelativePosition(currPos, currHeading, invPosition);
                     double relativeHeading = invHeading - currHeading;
+                    while (relativeHeading < -PI) relativeHeading += PI;
+                    while (relativeHeading > PI) relativeHeading -= PI;
 
                     #ifdef DEBUG_RELATIVE_POS
                         std::cout << "\t" << inv->getID() << ": " << invPosition << " | ";
                         std::cout << relativePosition << "," << relativeHeading << std::endl;
                     #endif
+
+
+                    if (inv->isFrontOnLane(currLane)) {
+                        double sYMax = vehWidth / 2.0 + invHalfWidth + DEFAULT_SYMIN;
+                        double phiJ = 1 - abs(relativePosition.y() / sYMax);
+                        phiVec.push_back(phiJ);
+                    }
+                    else {
+                        if (relativePosition.x() > 0) {
+                            double diagnalLength = pow(pow(invWidth, 2) + pow(invLength, 2), 0.5);
+                            double alpha = atan2(invLength, invWidth);
+                            double shaded = diagnalLength * sin(alpha + abs(relativeHeading));
+                            double sYMax = vehWidth / 2.0 + shaded / 2.0 + DEFAULT_SYMIN;
+
+                            double delta = relativePosition.x();
+                            double wJHat = shaded * 2.0, w = vehWidth;
+                            double x0 = relativePosition.x() - shaded / 2.0;
+                            double x1 = relativePosition.x() + shaded / 2.0;
+
+                            double phiJ = -1;
+                            if (abs(delta) >= sYMax) {
+                                phiJ = 0;
+                            }
+                            else if (wJHat >= w){
+                                if (abs(delta) <= (wJHat - w) / 2.0) {
+                                    phiJ = 1;
+                                }
+                                else if ((wJHat - w) / 2.0 < abs(delta) && abs(delta) < sYMax) {
+                                    phiJ = 1 - (w/2 - std::min(abs(x0), abs(x1))) / sYMax;
+                                }
+                            }
+                            else if (wJHat < w) {
+                                if (abs(delta) <= (w - wJHat) / 2.0) {
+                                    phiJ = 1 - ( ((w-wJHat)/2.0) * ( 2 * abs(delta) / (w - wJHat) ) ) / sYMax;
+                                }
+                                else if ((w - wJHat) / 2.0 < abs(delta) && abs(delta) < sYMax) {
+                                    if (delta > 0) {
+                                        phiJ = 1 - (x0 + w / 2.0) / sYMax;
+                                    }
+                                    else if (delta < 0) {
+                                        phiJ = 1 - (w/2.0 - x1) / sYMax;
+                                    }
+                                }
+                            }
+
+
+                            phiVec.push_back(phiJ);
+                        }
+                        else {
+                            phiVec.push_back(0.);
+                        }
+                    }
+
                 }
             }
         }
