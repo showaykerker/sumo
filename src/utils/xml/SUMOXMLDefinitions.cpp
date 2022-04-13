@@ -844,7 +844,11 @@ StringBijection<int>::Entry SUMOXMLDefinitions::attrs[] = {
     { "flatbedD",               SUMO_ATTR_CF_CC_FLATBED_D },
     { "flatbedH",               SUMO_ATTR_CF_CC_FLATBED_H },
 
-    { "lookaheadDist",          SUMO_ATTR_CF_L16_LOOKAHEAD },
+    { "lookaheadDist",             SUMO_ATTR_CF_L16_LOOKAHEAD },
+    { "free_acc_exponent",         SUMO_ATTR_CF_L16_FREE_ACC_EXPONENT },
+    { "max_acceleration",          SUMO_ATTR_CF_L16_MAX_ACCELERATION },
+    { "comfortable_deceleration",  SUMO_ATTR_CF_L16_COMFORTABLE_DECELERATION },
+    { "h",                         SUMO_ATTR_CF_L16_H },
 
     { "generateWalks",          SUMO_ATTR_GENERATE_WALKS },
     { "actType",                SUMO_ATTR_ACTTYPE },

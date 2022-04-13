@@ -64,7 +64,7 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 #define DEFAULT_CA_GAIN_SPACE 0.8
 #define DEFAULT_CA_GAIN_SPEED 0.23
 
-#define DEFAULT_LOOKAHEAD 50.0
+#define DEFAULT_LOOKAHEAD 25.0
 #define DEFAULT_SYMIN 0.1  // s^y_min in IV.A
 
 #define DEFAULT_FREE_ACC_EXPONENT 4  // delta in IV.B.(2)
@@ -92,6 +92,11 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 MSCFModel_Lin2016::MSCFModel_Lin2016(const MSVehicleType* vtype) :
     MSCFModel(vtype),
     myLookaheadDist(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_LOOKAHEAD, DEFAULT_LOOKAHEAD)),
+    myFreeAccExponent(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_FREE_ACC_EXPONENT, DEFAULT_FREE_ACC_EXPONENT)),
+    myMaxAcceleration(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_MAX_ACCELERATION, DEFAULT_MAX_ACCELERATION)),
+    myComfortableDeceleration(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_COMFORTABLE_DECELERATION, DEFAULT_COMFORTABLE_DECELERATION)),
+    myHConstant(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_H, DEFAULT_H)),
+
     mySpeedControlGain(vtype->getParameter().getCFParam(SUMO_ATTR_SC_GAIN, DEFAULT_SC_GAIN)),
     myGapClosingControlGainSpeed(vtype->getParameter().getCFParam(SUMO_ATTR_GCC_GAIN_SPEED, DEFAULT_GCC_GAIN_SPEED)),
     myGapClosingControlGainSpace(vtype->getParameter().getCFParam(SUMO_ATTR_GCC_GAIN_SPACE, DEFAULT_GCC_GAIN_SPACE)),
@@ -449,7 +454,7 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
         if (involved.size()) {
             double vX = veh->getSpeed();
             double tXCap = DEFAULT_DESIRED_TIME_HEADAWAY;
-            double rootAXMaxBXCom = pow(DEFAULT_MAX_ACCELERATION * DEFAULT_COMFORTABLE_DECELERATION, 0.5);
+            double rootAXMaxBXCom = pow(myMaxAcceleration * myComfortableDeceleration, 0.5);
             double maxDeceleration = -1;
             for (auto & vid: involved) {
                 InvolvedVehicleInfo inv = CalculateInvolvedVehicleInfo(veh, vid);
@@ -460,14 +465,14 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
                 double sXJCap = phi + vX * tXCap + (vX * (vX - vXJ))/(2 * rootAXMaxBXCom); // desiredGap
 
                 // activation govening control
-                int activate = (vX - vXJ) > 0 || (DEFAULT_H * (sXJCap - sXJ)) > 0;
-                double bXJ = DEFAULT_COMFORTABLE_DECELERATION * pow(sXJCap/sXJ, 2) * activate;
+                int activate = (vX - vXJ) > 0 || (myHConstant * (sXJCap - sXJ)) > 0;
+                double bXJ = myComfortableDeceleration * pow(sXJCap/sXJ, 2) * activate;
                 if (bXJ > maxDeceleration) {
                     maxDeceleration = bXJ;
                 }
             }
-            double aXFree = DEFAULT_MAX_ACCELERATION * (
-                1 - pow( vX / veh->getMaxSpeed(), DEFAULT_FREE_ACC_EXPONENT));  // longitudinalFreeAcceleration
+            double aXFree = myMaxAcceleration * (
+                1 - pow( vX / veh->getMaxSpeed(), myFreeAccExponent));  // longitudinalFreeAcceleration
             accelACC = aXFree - maxDeceleration;
         }
 

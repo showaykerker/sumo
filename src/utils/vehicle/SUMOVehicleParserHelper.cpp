@@ -1390,6 +1390,10 @@ SUMOVehicleParserHelper::getAllowedCFModelAttrs() {
         lin2016Params.insert(SUMO_ATTR_DECEL);
         lin2016Params.insert(SUMO_ATTR_TAU);
         lin2016Params.insert(SUMO_ATTR_CF_L16_LOOKAHEAD);
+        lin2016Params.insert(SUMO_ATTR_CF_L16_FREE_ACC_EXPONENT);
+        lin2016Params.insert(SUMO_ATTR_CF_L16_MAX_ACCELERATION);
+        lin2016Params.insert(SUMO_ATTR_CF_L16_COMFORTABLE_DECELERATION);
+        lin2016Params.insert(SUMO_ATTR_CF_L16_H);
         allowedCFModelAttrs[SUMO_TAG_CF_LIN2016] = lin2016Params;
         allParams.insert(lin2016Params.begin(), lin2016Params.end());
         // last element

@@ -160,6 +160,10 @@ private:
 
 private:
     double myLookaheadDist;
+    double myFreeAccExponent;
+    double myMaxAcceleration;
+    double myComfortableDeceleration;
+    double myHConstant;
 
     double mySpeedControlGain;
     double myGapClosingControlGainSpeed;
