@@ -141,7 +141,14 @@ private:
 
 
 private:
+    struct InvolvedVehicleInfo {
+        bool valid;
+        double lateralOverlappingRatio;
+        double speed;
+        double actualGap;
+    };
     Position getRelativePosition(Position v1, double v1Heading, Position v2) const;
+    InvolvedVehicleInfo CalculateInvolvedVehicleInfo(const MSVehicle* const veh, std::string involvedVehicleID) const;
     const std::vector<std::string>  getInvolvedVehicles(const MSVehicle* const veh) const;
     double _v(const MSVehicle* const veh, const double gap2pred, const double mySpeed,
               const double predSpeed, const double desSpeed, const bool respectMinGap = true) const;
@@ -165,5 +172,6 @@ private:
 private:
     /// @brief Invalidated assignment operator
     MSCFModel_Lin2016& operator=(const MSCFModel_Lin2016& s);
+
 };
 

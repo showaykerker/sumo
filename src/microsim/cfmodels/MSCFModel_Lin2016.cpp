@@ -65,7 +65,13 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 #define DEFAULT_CA_GAIN_SPEED 0.23
 
 #define DEFAULT_LOOKAHEAD 50.0
-#define DEFAULT_SYMIN (vehWidth / 3.0)
+#define DEFAULT_SYMIN 0.1  // s^y_min in IV.A
+
+#define DEFAULT_FREE_ACC_EXPONENT 4  // delta in IV.B.(2)
+#define DEFAULT_MAX_ACCELERATION 6.0  // a^x_max in IV.B.(2)
+#define DEFAULT_COMFORTABLE_DECELERATION 4.0  // b^x_com in IV.B.(4)
+#define DEFAULT_H 1.2  // h in IV.B.(4)
+#define DEFAULT_DESIRED_TIME_HEADAWAY 4.0  // t^x cap in IV.B.(5)
 // ===========================================================================
 // thresholds
 // ===========================================================================
@@ -213,6 +219,87 @@ MSCFModel_Lin2016::getRelativePosition(Position v1, double v1Heading, Position v
     return result;
 }
 
+MSCFModel_Lin2016::InvolvedVehicleInfo
+MSCFModel_Lin2016::CalculateInvolvedVehicleInfo(const MSVehicle* const veh, std::string involvedVehicleID) const {
+    SUMOVehicle* inv = MSNet::getInstance()->getVehicleControl().getVehicle(involvedVehicleID);
+    InvolvedVehicleInfo info;
+
+    info.valid = false;
+    double phiJ = -1;
+    double actualGap = -1;
+
+    if (inv) {  // Vehicle that is near the arrival will cause error
+        info.valid = true;
+        Position invPosition = inv->getPosition();
+        info.speed = inv->getSpeed();
+        if (invPosition != Position::INVALID) {  // Not in the net.
+
+            invPosition.setx(invPosition.x() - inv->getLength() / 2.0 * cos(inv->getAngle()));
+            invPosition.sety(invPosition.y() - inv->getLength() / 2.0 * sin(inv->getAngle()));
+            Position relativePosition = getRelativePosition(veh->getPosition(), veh->getAngle(), invPosition);
+            double relativeHeading = inv->getAngle() - veh->getAngle();
+            while (relativeHeading < -PI) relativeHeading += PI;
+            while (relativeHeading > PI) relativeHeading -= PI;
+
+            #ifdef DEBUG_RELATIVE_POS
+                std::cout << "\t" << inv->getID() << ": " << invPosition << " | ";
+                std::cout << relativePosition << "," << relativeHeading << std::endl;
+            #endif
+
+            if (relativePosition.x() > 0) {
+                double wj = inv->getVehicleType().getWidth();
+                double diagnalLength = pow(
+                    pow(wj, 2) + pow(inv->getLength(), 2), 0.5);
+                double alpha = atan2(inv->getLength(), wj);
+                double shaded = diagnalLength * sin(alpha + abs(relativeHeading));
+                double sYMax = veh->getWidth() / 2.0 + shaded / 2.0 + DEFAULT_SYMIN;
+                // double phiJTilde = 1 - (shaded / 2.0 + veh->getWidth() / 2.0) / sYMax;
+
+                double delta = relativePosition.x();
+                double wJCap = shaded * 2.0;
+                double w = veh->getWidth();
+                double x0 = relativePosition.x() - shaded / 2.0;
+                double x1 = relativePosition.x() + shaded / 2.0;
+
+                actualGap = relativePosition.x();
+                if (abs(delta) >= sYMax) {  // Not a potential leader
+                    phiJ = 0;
+                }
+                else if (wJCap >= w){
+                    if (abs(delta) <= (wJCap - w) / 2.0) {
+                        phiJ = 1;
+                    }
+                    else if ((wJCap - w) / 2.0 < abs(delta) && abs(delta) < sYMax) {
+                        phiJ = 1 - (w/2 - std::min(abs(x0), abs(x1))) / sYMax;
+                    }
+                }
+                else if (wJCap < w) {
+                    if (abs(delta) <= (w - wJCap) / 2.0) {
+                        phiJ = 1 - ( ((w-wJCap)/2.0) * ( 2 * abs(delta) / (w - wJCap) ) ) / sYMax;
+                    }
+                    else if ((w - wJCap) / 2.0 < abs(delta) && abs(delta) < sYMax) {
+                        if (delta > 0) {
+                            phiJ = 1 - (x0 + w / 2.0) / sYMax;
+                        }
+                        else if (delta < 0) {
+                            phiJ = 1 - (w/2.0 - x1) / sYMax;
+                        }
+                    }
+                }
+
+            }
+            else {
+                phiJ = 0;
+                actualGap = 1000;
+            }
+
+        }
+    }
+    info.lateralOverlappingRatio = phiJ;
+    info.actualGap = actualGap;
+    return info;
+}
+
 const std::vector<std::string>
 MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
 
@@ -302,17 +389,17 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
         }
         else {  // Vehicle is now in a junction
             std::string jid = vehLane->getEdge().getJunctionID();
-            if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
-                for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
-                    #ifdef DEBUG_GET_INVOLVED
-                        if (DEBUG_COND){
-                            std::cout << "Push: " << distVeh.second << std::endl;
-                        }
-                    #endif
-                    if (distVeh.second != veh->getID())
-                        vehs.push_back(distVeh.second);
-                }
-            }
+            // if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
+            //     for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
+            //         #ifdef DEBUG_GET_INVOLVED
+            //             if (DEBUG_COND){
+            //                 std::cout << "Push: " << distVeh.second << std::endl;
+            //             }
+            //         #endif
+            //         if (distVeh.second != veh->getID())
+            //             vehs.push_back(distVeh.second);
+            //     }
+            // }
             lookahead -= vehLane->getLength();
         }
 
@@ -355,163 +442,103 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
                   const double predSpeed, const double desSpeed, const bool /* respectMinGap */) const {
 
     double accelACC = 0;
-    double gapLimit_SC = GAP_THRESHOLD_SPEEDCTRL; // lower gap limit in meters to enable speed control law
-    double gapLimit_GC = GAP_THRESHOLD_GAPCTRL; // upper gap limit in meters to enable gap control law
+    double newSpeed;
 
-    const std::vector<std::string> involved = getInvolvedVehicles(veh);
-    Position currPos = veh->getPosition();
-    double currHeading = veh->getAngle();
-    const MSLane* currLane = veh->getLane();
-    double vehWidth = veh->getWidth();
-    if (involved.size()) {
+    if (veh->getEdge()->isJunctionConst()) {
+        const std::vector<std::string> involved = getInvolvedVehicles(veh);
+        if (involved.size()) {
+            double vX = veh->getSpeed();
+            double tXCap = DEFAULT_DESIRED_TIME_HEADAWAY;
+            double rootAXMaxBXCom = pow(DEFAULT_MAX_ACCELERATION * DEFAULT_COMFORTABLE_DECELERATION, 0.5);
+            double maxDeceleration = -1;
+            for (auto & vid: involved) {
+                InvolvedVehicleInfo inv = CalculateInvolvedVehicleInfo(veh, vid);
+                if (!inv.valid) continue;
+                double phi = inv.lateralOverlappingRatio;
+                double vXJ = inv.speed;
+                double sXJ = inv.actualGap;
+                double sXJCap = phi + vX * tXCap + (vX * (vX - vXJ))/(2 * rootAXMaxBXCom); // desiredGap
 
-        #ifdef DEBUG_RELATIVE_POS
-            std::cout << veh->getID() << ": " << currPos << "," << currHeading << std::endl;
-        #endif
-
-        std::vector<double> phiVec{};
-
-        for (auto & vid: involved) {
-            SUMOVehicle* inv = MSNet::getInstance()->getVehicleControl().getVehicle(vid);
-            if (inv) {  // Vehicle that is near the arrival will cause error
-                Position invPosition = inv->getPosition();
-                if (invPosition != Position::INVALID) {  // Not in the net.
-                    double invHeading = inv->getAngle();
-                    double invLength = inv->getLength();
-                    double invHalfLength = invLength / 2.0;
-                    double invWidth = inv->getVehicleType().getWidth();
-                    double invHalfWidth = invWidth / 2.0;
-
-                    invPosition.setx(invPosition.x() - invHalfLength * cos(invHeading));
-                    invPosition.sety(invPosition.y() - invHalfLength * sin(invHeading));
-                    Position relativePosition = getRelativePosition(currPos, currHeading, invPosition);
-                    double relativeHeading = invHeading - currHeading;
-                    while (relativeHeading < -PI) relativeHeading += PI;
-                    while (relativeHeading > PI) relativeHeading -= PI;
-
-                    #ifdef DEBUG_RELATIVE_POS
-                        std::cout << "\t" << inv->getID() << ": " << invPosition << " | ";
-                        std::cout << relativePosition << "," << relativeHeading << std::endl;
-                    #endif
-
-
-                    if (inv->isFrontOnLane(currLane)) {
-                        double sYMax = vehWidth / 2.0 + invHalfWidth + DEFAULT_SYMIN;
-                        double phiJ = 1 - abs(relativePosition.y() / sYMax);
-                        phiVec.push_back(phiJ);
-                    }
-                    else {
-                        if (relativePosition.x() > 0) {
-                            double diagnalLength = pow(pow(invWidth, 2) + pow(invLength, 2), 0.5);
-                            double alpha = atan2(invLength, invWidth);
-                            double shaded = diagnalLength * sin(alpha + abs(relativeHeading));
-                            double sYMax = vehWidth / 2.0 + shaded / 2.0 + DEFAULT_SYMIN;
-
-                            double delta = relativePosition.x();
-                            double wJHat = shaded * 2.0, w = vehWidth;
-                            double x0 = relativePosition.x() - shaded / 2.0;
-                            double x1 = relativePosition.x() + shaded / 2.0;
-
-                            double phiJ = -1;
-                            if (abs(delta) >= sYMax) {
-                                phiJ = 0;
-                            }
-                            else if (wJHat >= w){
-                                if (abs(delta) <= (wJHat - w) / 2.0) {
-                                    phiJ = 1;
-                                }
-                                else if ((wJHat - w) / 2.0 < abs(delta) && abs(delta) < sYMax) {
-                                    phiJ = 1 - (w/2 - std::min(abs(x0), abs(x1))) / sYMax;
-                                }
-                            }
-                            else if (wJHat < w) {
-                                if (abs(delta) <= (w - wJHat) / 2.0) {
-                                    phiJ = 1 - ( ((w-wJHat)/2.0) * ( 2 * abs(delta) / (w - wJHat) ) ) / sYMax;
-                                }
-                                else if ((w - wJHat) / 2.0 < abs(delta) && abs(delta) < sYMax) {
-                                    if (delta > 0) {
-                                        phiJ = 1 - (x0 + w / 2.0) / sYMax;
-                                    }
-                                    else if (delta < 0) {
-                                        phiJ = 1 - (w/2.0 - x1) / sYMax;
-                                    }
-                                }
-                            }
-
-
-                            phiVec.push_back(phiJ);
-                        }
-                        else {
-                            phiVec.push_back(0.);
-                        }
-                    }
-
+                // activation govening control
+                int activate = (vX - vXJ) > 0 || (DEFAULT_H * (sXJCap - sXJ)) > 0;
+                double bXJ = DEFAULT_COMFORTABLE_DECELERATION * pow(sXJCap/sXJ, 2) * activate;
+                if (bXJ > maxDeceleration) {
+                    maxDeceleration = bXJ;
                 }
             }
+            double aXFree = DEFAULT_MAX_ACCELERATION * (
+                1 - pow( vX / veh->getMaxSpeed(), DEFAULT_FREE_ACC_EXPONENT));  // longitudinalFreeAcceleration
+            accelACC = aXFree - maxDeceleration;
         }
+
+        newSpeed = speed + ACCEL2SPEED(accelACC);
     }
 
-#ifdef DEBUG_LIN2016
-    if (DEBUG_COND) {
-        std::cout << SIMTIME << " MSCFModel_Lin2016::_v() for veh '" << veh->getID() << "'\n"
-                  << "        gap=" << gap2pred << " speed="  << speed << " predSpeed=" << predSpeed
-                  << " desSpeed=" << desSpeed << std::endl;
-    }
-#endif
-
-
-    /* Velocity error */
-    double vErr = speed - desSpeed;
-    int setControlMode = 0;
-    Lin2016VehicleVariables* vars = (Lin2016VehicleVariables*) veh->getCarFollowVariables();
-    if (vars->lastUpdateTime != MSNet::getInstance()->getCurrentTimeStep()) {
-        vars->lastUpdateTime = MSNet::getInstance()->getCurrentTimeStep();
-        setControlMode = 1;
-    }
-    if (gap2pred > gapLimit_SC) {
-
-#ifdef DEBUG_LIN2016
-        if (DEBUG_COND) {
-            std::cout << "        applying speedControl" << std::endl;
-        }
-#endif
-        // Find acceleration - Speed control law
-        accelACC = accelSpeedControl(vErr);
-        // Set cl to vehicle parameters
-        if (setControlMode) {
-            vars->ACC_ControlMode = 0;
-        }
-    } else if (gap2pred < gapLimit_GC) {
-        // Find acceleration - Gap control law
-        accelACC = accelGapControl(veh, gap2pred, speed, predSpeed, vErr);
-        // Set cl to vehicle parameters
-        if (setControlMode) {
-            vars->ACC_ControlMode = 1;
-        }
-    } else {
-        // Follow previous applied law
-        int cm = vars->ACC_ControlMode;
-        if (!cm) {
-
-#ifdef DEBUG_LIN2016
+    else {
+        double gapLimit_SC = GAP_THRESHOLD_SPEEDCTRL; // lower gap limit in meters to enable speed control law
+        double gapLimit_GC = GAP_THRESHOLD_GAPCTRL; // upper gap limit in meters to enable gap control law
+        #ifdef DEBUG_LIN2016
             if (DEBUG_COND) {
-                std::cout << "        applying speedControl" << std::endl;
+                std::cout << SIMTIME << " MSCFModel_Lin2016::_v() for veh '" << veh->getID() << "'\n"
+                          << "        gap=" << gap2pred << " speed="  << speed << " predSpeed=" << predSpeed
+                          << " desSpeed=" << desSpeed << std::endl;
             }
-#endif
-            accelACC = accelSpeedControl(vErr);
-        } else {
-            accelACC = accelGapControl(veh, gap2pred, speed, predSpeed, vErr);
-        }
+        #endif
 
+
+            /* Velocity error */
+            double vErr = speed - desSpeed;
+            int setControlMode = 0;
+            Lin2016VehicleVariables* vars = (Lin2016VehicleVariables*) veh->getCarFollowVariables();
+            if (vars->lastUpdateTime != MSNet::getInstance()->getCurrentTimeStep()) {
+                vars->lastUpdateTime = MSNet::getInstance()->getCurrentTimeStep();
+                setControlMode = 1;
+            }
+            if (gap2pred > gapLimit_SC) {
+
+        #ifdef DEBUG_LIN2016
+                if (DEBUG_COND) {
+                    std::cout << "        applying speedControl" << std::endl;
+                }
+        #endif
+                // Find acceleration - Speed control law
+                accelACC = accelSpeedControl(vErr);
+                // Set cl to vehicle parameters
+                if (setControlMode) {
+                    vars->ACC_ControlMode = 0;
+                }
+            } else if (gap2pred < gapLimit_GC) {
+                // Find acceleration - Gap control law
+                accelACC = accelGapControl(veh, gap2pred, speed, predSpeed, vErr);
+                // Set cl to vehicle parameters
+                if (setControlMode) {
+                    vars->ACC_ControlMode = 1;
+                }
+            } else {
+                // Follow previous applied law
+                int cm = vars->ACC_ControlMode;
+                if (!cm) {
+
+        #ifdef DEBUG_LIN2016
+                    if (DEBUG_COND) {
+                        std::cout << "        applying speedControl" << std::endl;
+                    }
+        #endif
+                    accelACC = accelSpeedControl(vErr);
+                } else {
+                    accelACC = accelGapControl(veh, gap2pred, speed, predSpeed, vErr);
+                }
+
+            }
+
+            newSpeed = speed + ACCEL2SPEED(accelACC);
+
+        #ifdef DEBUG_LIN2016
+            if (DEBUG_COND) {
+                std::cout << "        result: accel=" << accelACC << " newSpeed="  << newSpeed << std::endl;
+            }
+        #endif
     }
-
-    double newSpeed = speed + ACCEL2SPEED(accelACC);
-
-#ifdef DEBUG_LIN2016
-    if (DEBUG_COND) {
-        std::cout << "        result: accel=" << accelACC << " newSpeed="  << newSpeed << std::endl;
-    }
-#endif
 
     return MAX2(0., newSpeed);
 }

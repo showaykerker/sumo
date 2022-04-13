@@ -1011,6 +1011,10 @@ public:
         return getID()[0] == ':';
     }
 
+    inline bool isJunctionConst() const {
+        return getID()[0] == ':';
+    }
+
     const std::string getJunctionID() {
         std::string fullID = getID();
         assert(isJunction());
