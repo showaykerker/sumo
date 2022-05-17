@@ -91,6 +91,7 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 // ===========================================================================
 MSCFModel_Lin2016::MSCFModel_Lin2016(const MSVehicleType* vtype) :
     MSCFModel(vtype),
+    myCalculatedNewSpeed({}),
     myLookaheadDist(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_LOOKAHEAD, DEFAULT_LOOKAHEAD)),
     myFreeAccExponent(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_FREE_ACC_EXPONENT, DEFAULT_FREE_ACC_EXPONENT)),
     myMaxAcceleration(vtype->getParameter().getCFParam(SUMO_ATTR_CF_L16_MAX_ACCELERATION, DEFAULT_MAX_ACCELERATION)),
@@ -392,22 +393,6 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
             }
 
         }
-        else {  // Vehicle is now in a junction
-            std::string jid = vehLane->getEdge().getJunctionID();
-            // if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
-            //     for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
-            //         #ifdef DEBUG_GET_INVOLVED
-            //             if (DEBUG_COND){
-            //                 std::cout << "Push: " << distVeh.second << std::endl;
-            //             }
-            //         #endif
-            //         if (distVeh.second != veh->getID())
-            //             vehs.push_back(distVeh.second);
-            //     }
-            // }
-            lookahead -= vehLane->getLength();
-        }
-
 
         #ifdef DEBUG_GET_INVOLVED
             if (DEBUG_COND) {
@@ -449,6 +434,14 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     double accelACC = 0;
     double newSpeed;
 
+    const SUMOTime currTime = MSNet::getInstance()->getCurrentTimeStep();
+
+    if (myCalculatedNewSpeed.find(veh->getID()) != myCalculatedNewSpeed.end()) {
+        std::pair<SUMOTime, double> timeSpeedPair = myCalculatedNewSpeed.at(veh->getID());
+        if (timeSpeedPair.first == currTime)
+            return timeSpeedPair.second;
+    }
+
     if (veh->getEdge()->isJunctionConst()) {
         const std::vector<std::string> involved = getInvolvedVehicles(veh);
         if (involved.size()) {
@@ -475,10 +468,8 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
                 1 - pow( vX / veh->getMaxSpeed(), myFreeAccExponent));  // longitudinalFreeAcceleration
             accelACC = aXFree - maxDeceleration;
         }
-
         newSpeed = speed + ACCEL2SPEED(accelACC);
     }
-
     else {
         double gapLimit_SC = GAP_THRESHOLD_SPEEDCTRL; // lower gap limit in meters to enable speed control law
         double gapLimit_GC = GAP_THRESHOLD_GAPCTRL; // upper gap limit in meters to enable gap control law
@@ -544,6 +535,12 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
             }
         #endif
     }
+
+    // myCalculatedNewSpeed.insert(
+    //     std::map<std::string, std::pair<SUMOTime, double>>(
+    //         veh->getID(), std::pair<SUMOTime, double>(currTime, MAX2(0., newSpeed))
+    //     )
+    // );
 
     return MAX2(0., newSpeed);
 }

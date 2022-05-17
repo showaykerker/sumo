@@ -173,6 +173,8 @@ private:
     double myCollisionAvoidanceGainSpeed;
     double myCollisionAvoidanceGainSpace;
 
+    std::map<std::string, std::pair<SUMOTime, double>> myCalculatedNewSpeed;
+
 private:
     /// @brief Invalidated assignment operator
     MSCFModel_Lin2016& operator=(const MSCFModel_Lin2016& s);
