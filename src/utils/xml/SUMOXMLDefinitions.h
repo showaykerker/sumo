@@ -1698,6 +1698,7 @@ enum class LaneChangeModel {
     DK2008,
     LC2013,
     SL2015,
+    LIN2016,
     DEFAULT
 };
 

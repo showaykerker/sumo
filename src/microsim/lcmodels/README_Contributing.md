@@ -13,3 +13,5 @@ Modifications to the files and directories listed here are considered _derivativ
 - MSLCM_LC2013.h
 - MSLCM_SL2015.cpp
 - MSLCM_SL2015.h
+- MSLCM_LIN2016.cpp
+- MSLCM_LIN2016.h

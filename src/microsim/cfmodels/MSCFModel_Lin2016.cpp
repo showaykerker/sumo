@@ -51,7 +51,7 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 // ===========================================================================
 // constants
 // ===========================================================================
-// #define PI 3.14159265  // already defined in /usr/include/fox-1.6/fxdefs.h
+// #define PI 3.14159265  // already defined in /usr/include/fox-1.6/fxdefs.h (sudo apt-get install libfox-1.6-dev)
 
 // ===========================================================================
 // defaults

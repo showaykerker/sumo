@@ -9,7 +9,10 @@ set(microsim_lcmodels_STAT_SRCS
    MSLCM_LC2013.h
    MSLCM_SL2015.cpp
    MSLCM_SL2015.h
+   MSLCM_LIN2016.cpp
+   MSLCM_LIN2016.h
 )
+
 
 add_library(microsim_lcmodels STATIC ${microsim_lcmodels_STAT_SRCS})
 set_property(TARGET microsim_lcmodels PROPERTY PROJECT_LABEL "z_microsim_lcmodels")
