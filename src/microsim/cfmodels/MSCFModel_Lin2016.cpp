@@ -397,6 +397,21 @@ MSCFModel_Lin2016::getInvolvedVehicles(const MSVehicle* const veh) const {
             }
 
         }
+        else {  // Leader Vehicles in next junction
+            // std::string jid = vehLane->getEdge().getJunctionID();
+            // if (vehPosOnEdgeMap->find(jid) != vehPosOnEdgeMap->end()) {
+            //     for (auto & distVeh: vehPosOnEdgeMap->at(jid)) {
+            //         #ifdef DEBUG_GET_INVOLVED
+            //             if (DEBUG_COND){
+            //                 std::cout << "Push: " << distVeh.second << std::endl;
+            //             }
+            //         #endif
+            //         if (distVeh.second != veh->getID())
+            //             vehs.push_back(distVeh.second);
+            //     }
+            // }
+            lookahead -= vehLane->getLength();
+        }
 
         #ifdef DEBUG_GET_INVOLVED
             if (DEBUG_COND) {
@@ -438,22 +453,31 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     double accelACC = 0;
     double newSpeed;
 
-
     const SUMOTime currTime = MSNet::getInstance()->getCurrentTimeStep();
 
     if (myCalculatedNewSpeed.find(veh->getID()) != myCalculatedNewSpeed.end()) {
         std::pair<SUMOTime, double> timeSpeedPair = myCalculatedNewSpeed.at(veh->getID());
-        if (timeSpeedPair.first == currTime)
-            return timeSpeedPair.second;
+        if (timeSpeedPair.first == currTime) {
+            #ifdef DEBUG_LIN2016
+                if (DEBUG_COND)
+                    std::cout << "hey " << veh->getID() << std::endl;
+                return timeSpeedPair.second;
+            #endif
+        }
     }
 
     if (true) { //veh->getEdge()->isJunctionConst()) {
         const std::vector<std::string> involved = getInvolvedVehicles(veh);
+        double vX = veh->getSpeed();
+        double maxDeceleration = 0;
         if (involved.size()) {
-            double vX = veh->getSpeed();
             double tXCap = DEFAULT_DESIRED_TIME_HEADAWAY;
             double rootAXMaxBXCom = pow(myMaxAcceleration * myComfortableDeceleration, 0.5);
-            double maxDeceleration = -1;
+            #ifdef DEBUG_LIN2016
+                if (DEBUG_COND) {
+                    std::cout << SIMTIME << " Lin2016 _v() vX=" << vX << " rootAXMaxBXCom=" << rootAXMaxBXCom << "\n";
+                }
+            #endif
             for (auto & vid: involved) {
                 InvolvedVehicleInfo inv = CalculateInvolvedVehicleInfo(veh, vid);
                 if (!inv.valid) continue;
@@ -468,84 +492,31 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
                 if (bXJ > maxDeceleration) {
                     maxDeceleration = bXJ;
                 }
-            }
-            double aXFree = myMaxAcceleration * (
-                1 - pow( vX / veh->getMaxSpeed(), myFreeAccExponent));  // longitudinalFreeAcceleration
-            accelACC = aXFree - maxDeceleration;
-        }
-        newSpeed = speed + ACCEL2SPEED(accelACC);
-    }
-    else {
-        double gapLimit_SC = GAP_THRESHOLD_SPEEDCTRL; // lower gap limit in meters to enable speed control law
-        double gapLimit_GC = GAP_THRESHOLD_GAPCTRL; // upper gap limit in meters to enable gap control law
-        #ifdef DEBUG_LIN2016
-            if (DEBUG_COND) {
-                std::cout << SIMTIME << " MSCFModel_Lin2016::_v() for veh '" << veh->getID() << "'\n"
-                          << "        gap=" << gap2pred << " speed="  << speed << " predSpeed=" << predSpeed
-                          << " desSpeed=" << desSpeed << std::endl;
-            }
-        #endif
-
-
-            /* Velocity error */
-            double vErr = speed - desSpeed;
-            int setControlMode = 0;
-            Lin2016VehicleVariables* vars = (Lin2016VehicleVariables*) veh->getCarFollowVariables();
-            if (vars->lastUpdateTime != MSNet::getInstance()->getCurrentTimeStep()) {
-                vars->lastUpdateTime = MSNet::getInstance()->getCurrentTimeStep();
-                setControlMode = 1;
-            }
-            if (gap2pred > gapLimit_SC) {
-
-        #ifdef DEBUG_LIN2016
-                if (DEBUG_COND) {
-                    std::cout << "        applying speedControl" << std::endl;
-                }
-        #endif
-                // Find acceleration - Speed control law
-                accelACC = accelSpeedControl(vErr);
-                // Set cl to vehicle parameters
-                if (setControlMode) {
-                    vars->ACC_ControlMode = 0;
-                }
-            } else if (gap2pred < gapLimit_GC) {
-                // Find acceleration - Gap control law
-                accelACC = accelGapControl(veh, gap2pred, speed, predSpeed, vErr);
-                // Set cl to vehicle parameters
-                if (setControlMode) {
-                    vars->ACC_ControlMode = 1;
-                }
-            } else {
-                // Follow previous applied law
-                int cm = vars->ACC_ControlMode;
-                if (!cm) {
-
-        #ifdef DEBUG_LIN2016
+                #ifdef DEBUG_LIN2016
                     if (DEBUG_COND) {
-                        std::cout << "        applying speedControl" << std::endl;
+                        std::cout << "\tvid: " << vid << " phi=" << phi << " vXJ=" << vXJ <<
+                            " sXJ=" << sXJ << " sXJCap=" << sXJCap << " activate=" << activate <<
+                            " bXJ=" << bXJ << " maxDecel=" << maxDeceleration << std::endl;
                     }
-        #endif
-                    accelACC = accelSpeedControl(vErr);
-                } else {
-                    accelACC = accelGapControl(veh, gap2pred, speed, predSpeed, vErr);
-                }
-
+                #endif
             }
-
-            newSpeed = speed + ACCEL2SPEED(accelACC);
-
+        }
+        double aXFree = myMaxAcceleration * (
+            1 - pow( vX / veh->getMaxSpeed(), myFreeAccExponent));  // longitudinalFreeAcceleration
+        accelACC = aXFree - maxDeceleration;
         #ifdef DEBUG_LIN2016
             if (DEBUG_COND) {
-                std::cout << "        result: accel=" << accelACC << " newSpeed="  << newSpeed << std::endl;
+                std::cout << " aXFree=" << aXFree << " accelACC=" << accelACC << "\n";
             }
         #endif
+        newSpeed = veh->getSpeed() + ACCEL2SPEED(accelACC);
+
     }
 
-    // myCalculatedNewSpeed.insert(
-    //     std::map<std::string, std::pair<SUMOTime, double>>(
-    //         veh->getID(), std::pair<SUMOTime, double>(currTime, MAX2(0., newSpeed))
-    //     )
-    // );
+
+    myCalculatedNewSpeed.insert(
+        std::make_pair(veh->getID(), std::make_pair(currTime, MAX2(0., newSpeed)))
+    );
     return MAX2(0., newSpeed);
 
 }

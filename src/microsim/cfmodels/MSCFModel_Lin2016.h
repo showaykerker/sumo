@@ -173,7 +173,7 @@ private:
     double myCollisionAvoidanceGainSpeed;
     double myCollisionAvoidanceGainSpace;
 
-    std::map<std::string, std::pair<SUMOTime, double>> myCalculatedNewSpeed;
+    mutable std::map<std::string, std::pair<SUMOTime, double>> myCalculatedNewSpeed;
 
 private:
     /// @brief Invalidated assignment operator
