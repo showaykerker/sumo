@@ -78,13 +78,20 @@
 // exponential averaging factor for expected sublane speeds
 #define SPEEDGAIN_MEMORY_FACTOR 0.5
 
+#define MAX_LAT_SPEED 3.0
 
+
+
+#define GAMMA 0.8  // necessity factor of overtaking
+#define EETA_MOTORCYCLE 1.0
+#define EETA_TAXI 0.5
+#define EETA_ELSE 0.1
 
 // ===========================================================================
 // Debug flags
 // ===========================================================================
-//#define DEBUG_MANEUVER
-//#define DEBUG_WANTSCHANGE
+// #define DEBUG_MANEUVER
+// #define DEBUG_WANTSCHANGE
 //#define DEBUG_STRATEGIC_CHANGE
 //#define DEBUG_KEEP_LATGAP
 //#define DEBUG_STATE
@@ -153,6 +160,142 @@ MSLCM_LIN2016::MSLCM_LIN2016(MSVehicle& v) :
     mySigmaState(0) {
     initDerivedParameters();
 }
+
+
+// ===========================================================================
+// Lin2016 Implementation
+// ===========================================================================
+
+void
+MSLCM_LIN2016::core() {
+    myBestSuggestedLateralPosition = getPosLat();
+    double necessity = checkNecessity();
+    // if (necessity) {
+    //     bool mechanism = selectMechanism(necessity);
+    //     std::vector<MSVehicle *> collections;
+    //     if (mechanism == true) {
+    //         collections = spaceOrientedRegionCollection();
+    //     }
+    //     else {
+    //         collections = laneOrientedRegionCollection();
+    //     }
+    //     feasibilityEvaluation(collections);
+    //     utilityEvaluation();
+    // }
+    // myVehicle.setLateralPositionOnLane(myBestSuggestedLateralPosition);
+}
+
+double omega(double val) {
+    if (val < 0) return 0;
+    else if (val > 1) return 1;
+    else return val;
+}
+
+double
+MSLCM_LIN2016::checkNecessity() {
+    // std::pair<const MSVehicle* const, double> leaderInfo = myVehicle.getLeader();
+    // const MSLane* lane = myVehicle.getLane();
+    // double betaBlockage = checkIsBlocking(leaderInfo, lane);
+    // double betaTurning = checkIsTurning();
+    // double betaOvertaking = checkIsOvertaking(leaderInfo, lane);
+    // double betaTransiting = checkIsTransiting();
+    // double betaCentering = checkIsCentering(lane);
+    // if (betaBlockage == 1 || betaTurning == 1 || betaOvertaking == 1 || betaTransiting == 1 || betaCentering == 1)
+    //     return 1;
+    // else {
+    //     return betaBlockage * 0.25 + betaTurning * 0.25 + betaOvertaking * 0.25 + betaCentering * 0.25;
+    // }
+
+}
+
+double
+MSLCM_LIN2016::checkIsBlocking(const MSLeaderDistanceInfo& leaderDistanceInfo, const MSLane* lane) {
+    CLeaderDist leaderInfo = leaderDistanceInfo.getClosest();
+    if (lane->getLinkTo(lane) == nullptr) return false;
+    if (leaderInfo.second == -1) return 0;
+    else {
+        double vx = myVehicle.getSpeed();
+        double dx = leaderInfo.second;
+        double maneuverDist = (myVehicle.getWidth() + leaderInfo.first->getWidth()) / 2.0;  // assumption
+        double secondsToLeaveLane = ceil(fabs(maneuverDist) / myVehicle.getVehicleType().getMaxSpeedLat() / myVehicle.getActionStepLengthSecs()) * myVehicle.getActionStepLengthSecs();
+        double tbmin = secondsToLeaveLane;
+        double dxmax = LOOK_FORWARD;  // assumption
+        if (dx < dxmax) return 0;
+        double betaBlockage = omega((1 - (dx - vx * tbmin) / (dxmax - vx * tbmin)));
+        return betaBlockage;
+    }
+}
+
+double
+MSLCM_LIN2016::checkIsTurning() {
+    return 0;
+}
+
+double
+MSLCM_LIN2016::checkIsOvertaking(const MSLeaderDistanceInfo& leaderDistanceInfo, const MSLane* lane) {
+    CLeaderDist leaderInfo = leaderDistanceInfo.getClosest();
+    double maxSpeedAllowed = lane->getSpeedLimit();
+    double vx = myVehicle.getSpeed();
+    double decel = 5.;  // assumption
+    double vxcap = myVehicle.getCarFollowModel().freeSpeed(vx, decel, LOOK_FORWARD, maxSpeedAllowed, false, DELTA_T);
+    double vxj = vxcap;
+    if (leaderInfo.second != -1.0)
+        vxj = leaderInfo.first->getSpeed();
+    double betaOvertaking = GAMMA * omega(1 - (vxj / vxcap));
+    return betaOvertaking;
+}
+
+double
+MSLCM_LIN2016::checkIsTransiting() {
+    return isChangingLanes();
+}
+
+double
+MSLCM_LIN2016::checkIsCentering(const MSLane* lane) {
+    double w = lane->getWidth();
+    double py = abs(myVehicle.getLateralPositionOnLane());
+    double dy = w / 2.0 - py;
+    double betaCentering = omega((w - 2 * dy) / w);
+    return betaCentering;
+}
+
+
+bool
+MSLCM_LIN2016::selectMechanism(double beta) {
+    double eeta;
+    SUMOVehicleClass vClass = myVehicle.getVehicleType().getVehicleClass();
+    if (vClass == SUMOVehicleClass::SVC_MOTORCYCLE || vClass == SUMOVehicleClass::SVC_MOPED || vClass == SUMOVehicleClass::SVC_BICYCLE) eeta = EETA_MOTORCYCLE;
+    else if (vClass == SUMOVehicleClass::SVC_TAXI) eeta = EETA_TAXI;
+    else eeta = EETA_ELSE;
+    double random = RandHelper::rand(2.0);
+    double p = omega(beta + eeta - beta * eeta);
+    return random < p;
+}
+
+std::vector<MSVehicle *>
+MSLCM_LIN2016::spaceOrientedRegionCollection() {
+
+}
+
+std::vector<MSVehicle *>
+MSLCM_LIN2016::laneOrientedRegionCollection() {
+
+}
+
+void
+MSLCM_LIN2016::feasibilityEvaluation(std::vector<MSVehicle *> collections) {
+
+}
+
+double
+MSLCM_LIN2016::utilityEvaluation() {
+
+}
+
+
+// ===========================================================================
+// Lin2016 Implementation end
+// ===========================================================================
 
 MSLCM_LIN2016::~MSLCM_LIN2016() {
     changed();
@@ -936,6 +1079,7 @@ MSLCM_LIN2016::prepareStep() {
     if (mySigma > 0) {
         mySigmaState += getLateralDrift();
     }
+    // core();
 }
 
 double
@@ -1042,6 +1186,18 @@ MSLCM_LIN2016::_wantsChangeSublane(
     double currentDist = 0;
     double neighDist = 0;
     const MSLane* prebLane = myVehicle.getLane();
+
+    double betaBlockage = checkIsBlocking(leaders, prebLane);
+    double betaTurning = checkIsTurning();
+    double betaOvertaking = checkIsOvertaking(leaders, prebLane);
+    double betaTransiting = checkIsTransiting();
+    double betaCentering = checkIsCentering(prebLane);
+    // if (betaBlockage == 1 || betaTurning == 1 || betaOvertaking == 1 || betaTransiting == 1 || betaCentering == 1)
+    //     return 1;
+    // else {
+    //     return betaBlockage * 0.25 + betaTurning * 0.25 + betaOvertaking * 0.25 + betaCentering * 0.25;
+    // }
+
     if (prebLane->getEdge().isInternal()) {
         // internal edges are not kept inside the bestLanes structure
         if (isOpposite()) {

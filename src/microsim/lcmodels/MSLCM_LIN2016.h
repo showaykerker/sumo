@@ -32,6 +32,25 @@
  * @brief A lane change model developed by J. Erdmann
  */
 class MSLCM_LIN2016 : public MSAbstractLaneChangeModel {
+
+private:
+    double myBestSuggestedLateralPosition;
+    void core();
+
+    double checkNecessity();
+    double checkIsBlocking(const MSLeaderDistanceInfo& leaderInfo, const MSLane* lane);
+    double checkIsTurning();
+    double checkIsOvertaking(const MSLeaderDistanceInfo& leaderInfo, const MSLane* lane);
+    double checkIsTransiting();
+    double checkIsCentering(const MSLane* lane);
+
+    // Return true if using space-oriented mechanism otherwise lane-oriented.
+    bool selectMechanism(double beta);
+    std::vector<MSVehicle *> spaceOrientedRegionCollection();
+    std::vector<MSVehicle *> laneOrientedRegionCollection();
+    void feasibilityEvaluation(std::vector<MSVehicle *> collections);
+    double utilityEvaluation();
+
 public:
 
     MSLCM_LIN2016(MSVehicle& v);
