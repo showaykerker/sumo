@@ -66,12 +66,13 @@ typedef std::vector<std::pair<double, std::string>> MSVehIDInstanceVector;
 
 #define DEFAULT_LOOKAHEAD 25.0
 #define DEFAULT_SYMIN 0.1  // s^y_min in IV.A
+#define DEFAULT_SXMIN 0.8
 
 #define DEFAULT_FREE_ACC_EXPONENT 4  // delta in IV.B.(2)
-#define DEFAULT_MAX_ACCELERATION 6.0  // a^x_max in IV.B.(2)
-#define DEFAULT_COMFORTABLE_DECELERATION 4.0  // b^x_com in IV.B.(4)
+#define DEFAULT_MAX_ACCELERATION 5.23  // a^x_max in IV.B.(2)
+#define DEFAULT_COMFORTABLE_DECELERATION 2.48  // b^x_com in IV.B.(4)
 #define DEFAULT_H 1.2  // h in IV.B.(4)
-#define DEFAULT_DESIRED_TIME_HEADAWAY 4.0  // t^x cap in IV.B.(5)
+#define DEFAULT_DESIRED_TIME_HEADAWAY 1.4  // t^x cap in IV.B.(5)
 // ===========================================================================
 // thresholds
 // ===========================================================================
@@ -122,6 +123,7 @@ MSCFModel_Lin2016::followSpeed(const MSVehicle* const veh, double speed, double 
         //std::cout << SIMTIME << " veh=" << veh->getID() << " v=" << speed << " vL=" << predSpeed << " gap=" << gap2pred << " vACC=" << vACC << " vSafe=" << vSafe << " cm=" << vars->ACC_ControlMode << "\n";
         return vSafe + DEFAULT_EMERGENCY_OVERRIDE_THRESHOLD;
     }
+    // veh->setDesiredSpeed(desSpeed);
     return vACC;
 }
 
@@ -131,7 +133,9 @@ MSCFModel_Lin2016::stopSpeed(const MSVehicle* const veh, const double speed, dou
     // NOTE: This allows return of smaller values than minNextSpeed().
     // Only relevant for the ballistic update: We give the argument headway=TS, to assure that
     // the stopping position is approached with a uniform deceleration also for tau!=TS.
-    return MIN2(maximumSafeStopSpeed(gap, decel, speed, false, veh->getActionStepLengthSecs()), maxNextSpeed(speed, veh));
+    const double desSpeed = MIN2(maximumSafeStopSpeed(gap, decel, speed, false, veh->getActionStepLengthSecs()), maxNextSpeed(speed, veh));
+    // veh->setDesiredSpeed(desSpeed);
+    return desSpeed;
 }
 
 
@@ -240,8 +244,8 @@ MSCFModel_Lin2016::CalculateInvolvedVehicleInfo(const MSVehicle* const veh, std:
         info.speed = inv->getSpeed();
         if (invPosition != Position::INVALID) {  // Not in the net.
 
-            invPosition.setx(invPosition.x() - inv->getLength() / 2.0 * cos(inv->getAngle()));
-            invPosition.sety(invPosition.y() - inv->getLength() / 2.0 * sin(inv->getAngle()));
+            invPosition.setx(invPosition.x() - inv->getLength() * cos(inv->getAngle()));
+            invPosition.sety(invPosition.y() - inv->getLength() * sin(inv->getAngle()));
             Position relativePosition = getRelativePosition(veh->getPosition(), veh->getAngle(), invPosition);
             double relativeHeading = inv->getAngle() - veh->getAngle();
             while (relativeHeading < -PI) relativeHeading += PI;
@@ -434,6 +438,7 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     double accelACC = 0;
     double newSpeed;
 
+
     const SUMOTime currTime = MSNet::getInstance()->getCurrentTimeStep();
 
     if (myCalculatedNewSpeed.find(veh->getID()) != myCalculatedNewSpeed.end()) {
@@ -442,7 +447,7 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
             return timeSpeedPair.second;
     }
 
-    if (veh->getEdge()->isJunctionConst()) {
+    if (true) { //veh->getEdge()->isJunctionConst()) {
         const std::vector<std::string> involved = getInvolvedVehicles(veh);
         if (involved.size()) {
             double vX = veh->getSpeed();
@@ -455,10 +460,10 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
                 double phi = inv.lateralOverlappingRatio;
                 double vXJ = inv.speed;
                 double sXJ = inv.actualGap;
-                double sXJCap = phi + vX * tXCap + (vX * (vX - vXJ))/(2 * rootAXMaxBXCom); // desiredGap
+                double sXJCap = phi * DEFAULT_SXMIN + vX * tXCap + (vX * (vX - vXJ))/(2 * rootAXMaxBXCom); // desiredGap
 
-                // activation govening control
-                int activate = (vX - vXJ) > 0 || (myHConstant * (sXJCap - sXJ)) > 0;
+                // activation governing control
+                int activate = (vX - vXJ) > 0 || (myHConstant * sXJCap - sXJ) > 0;
                 double bXJ = myComfortableDeceleration * pow(sXJCap/sXJ, 2) * activate;
                 if (bXJ > maxDeceleration) {
                     maxDeceleration = bXJ;
@@ -541,8 +546,8 @@ MSCFModel_Lin2016::_v(const MSVehicle* const veh, const double gap2pred, const d
     //         veh->getID(), std::pair<SUMOTime, double>(currTime, MAX2(0., newSpeed))
     //     )
     // );
-
     return MAX2(0., newSpeed);
+
 }
 
 
